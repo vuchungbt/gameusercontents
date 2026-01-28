@@ -1,33 +1,44 @@
+require('dotenv').config();
 const express = require('express');
-const config = require('config');
 const mongo = require('./config/mongo');
-var cors = require('cors');
+const cors = require('cors');
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const users = require('./routes/api/user');
 const auth = require('./routes/api/auth');
 const bodyParser = require('body-parser');
-const authAdmin = require('./routes/admin/auth');
-const user = require('./routes/admin/user');
+
 const app = express();
 
-const server = require("http").Server(app);
-app.use(
-    bodyParser.urlencoded({
-        extended: true,
-    }),
-);
-app.use(bodyParser.json());
-app.use(cookieParser(config.get('jwtSecret')));
-
-
-const port = process.env.PORT || 3016;
-server.listen(port, () => console.log(`Started on port ${port}...`));
-
-app.use(express.json());
+// Security Middleware
+app.use(helmet());
 app.use(cors());
 
+// Body Parser Middleware
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use(express.json());
+
+// Cookie Parser
+app.use(cookieParser(process.env.JWT_SECRET));
+
+const port = process.env.PORT || 3016;
+app.listen(port, () => console.log(`Server started on port ${port}...`));
+
+// Connect Database
 mongo.connect();
+
+// Routes
 app.use('/api/user', users);
 app.use('/api/auth', auth);
 app.use('/admin/auth', authAdmin);
 app.use('/admin/user', user);
+
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        status: 500,
+        msg: 'Something went wrong on the server'
+    });
+});

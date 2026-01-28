@@ -19,7 +19,8 @@ const UserSchema = new Schema({
     },
     bestScore: {
         type: Number,
-        default: 0
+        default: 0,
+        index: true
     },
     coin: {
         type: Number,
@@ -38,5 +39,19 @@ const UserSchema = new Schema({
         default: Date.now
     }
 });
+
+UserSchema.methods.toAuthJSON = function() {
+    return {
+        id: this._id,
+        name: this.name,
+        googleId: this.googleId,
+        email: this.email,
+        bestScore: this.bestScore,
+        coin: this.coin,
+        showAds: this.showAds,
+        hatSkin: this.hatSkin,
+        createdAt: this.createdAt
+    };
+};
 
 module.exports = User = mongoose.model("user", UserSchema);

@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const config = require('config');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('../../middleware/auth');
 const axios = require('axios');
+const { OAuth2Client } = require('google-auth-library');
 //Model
 const User = require('../../models/User');
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const googleApi = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
 // @route GET api/auth/me
@@ -23,17 +24,7 @@ router.get('/me', authMiddleware, (req, res) => {
             }
             res.json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
@@ -45,54 +36,91 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 // @route POST api/auth/google
-// @desc Authenticate with Google
+// @desc Authenticate with Google (Supports ID Token or Access Token)
 // @access Public
 router.post('/google', async(req, res, next) => {
     try {
-        const accessToken = req.body.access_token;
+        const { id_token, access_token } = req.body;
         
-        if (!accessToken) {
+        if (!id_token && !access_token) {
             return res.status(400).json({
                 status: 400,
-                msg: 'Access token is required',
+                msg: 'Google token is required',
             });
         }
 
-        const url = `${googleApi}?access_token=${accessToken}`;
-        const datares = await axios.get(url);
-        let datajson = datares.data;
+        let userData = null;
 
-        if (!datajson || !datajson.id) {
+        // 1. Ưu tiên xác thực bằng ID Token (Chuẩn bảo mật cao hơn cho Mobile)
+        if (id_token) {
+            try {
+                const ticket = await googleClient.verifyIdToken({
+                    idToken: id_token,
+                    audience: process.env.GOOGLE_CLIENT_ID,
+                });
+                const payload = ticket.getPayload();
+                userData = {
+                    id: payload['sub'], // Google User ID
+                    email: payload['email'],
+                    name: payload['name']
+                };
+            } catch (error) {
+                console.error('ID Token verification failed:', error.message);
+                if (!access_token) {
+                    return res.status(401).json({
+                        status: 401,
+                        msg: 'Invalid ID Token',
+                    });
+                }
+            }
+        }
+
+        // 2. Fallback sang Access Token nếu không có ID Token hoặc verify ID Token thất bại
+        if (!userData && access_token) {
+            const url = `${googleApi}?access_token=${access_token}`;
+            const datares = await axios.get(url);
+            const datajson = datares.data;
+
+            if (datajson && datajson.id) {
+                userData = {
+                    id: datajson.id,
+                    email: datajson.email,
+                    name: datajson.name
+                };
+            }
+        }
+
+        if (!userData) {
             return res.status(401).json({
                 status: 401,
-                msg: 'Auth failed - Invalid token',
+                msg: 'Auth failed - Unable to get user info',
             });
         }
 
         // Check for existing user by googleId
         let user = await User.findOne({
-            googleId: datajson.id,
+            googleId: userData.id,
         });
 
         if (!user) {
-            // Check if email already exists (in case user was created differently)
+            // Check if email already exists
             user = await User.findOne({
-                email: datajson.email,
+                email: userData.email,
             });
 
             if (user) {
-                // Update existing user with googleId
-                user.googleId = datajson.id;
-                if (!user.name && datajson.name) {
-                    user.name = datajson.name;
+                // Link Google ID to existing email account
+                user.googleId = userData.id;
+                if (!user.name && userData.name) {
+                    user.name = userData.name;
                 }
                 await user.save();
             } else {
                 // Create new user
                 user = new User({
-                    name: datajson.name || '',
-                    googleId: datajson.id,
-                    email: datajson.email || '',
+                    name: userData.name || '',
+                    googleId: userData.id,
+                    email: userData.email || '',
                     bestScore: 0,
                     coin: 0,
                     showAds: true,
@@ -102,9 +130,9 @@ router.post('/google', async(req, res, next) => {
                 await user.save();
             }
         } else {
-            // Update name if it's empty and we have new data
-            if ((!user.name || user.name === '') && datajson.name) {
-                user.name = datajson.name;
+            // Update name if empty
+            if (!user.name && userData.name) {
+                user.name = userData.name;
                 await user.save();
             }
         }
@@ -113,31 +141,21 @@ router.post('/google', async(req, res, next) => {
         const token = jwt.sign({
             id: user._id,
             email: user.email,
-        }, config.get('jwtSecret'), {
-            expiresIn: 8640000, // 100 days
+        }, process.env.JWT_SECRET, {
+            expiresIn: '30d',
         });
 
         return res.status(200).json({
             status: 200,
-            user: {
-                id: user._id,
-                name: user.name,
-                googleId: user.googleId,
-                email: user.email,
-                bestScore: user.bestScore,
-                coin: user.coin,
-                showAds: user.showAds,
-                hatSkin: user.hatSkin,
-                createdAt: user.createdAt
-            },
+            user: user.toAuthJSON(),
             token: token
         });
 
     } catch (err) {
-        console.log('Google auth error:', err);
-        res.status(401).json({
-            status: 401,
-            msg: 'Auth failed',
+        console.error('Google auth error:', err);
+        res.status(500).json({
+            status: 500,
+            msg: 'Internal Server Error',
         });
     }
 });

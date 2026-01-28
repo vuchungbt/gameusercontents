@@ -1,4 +1,3 @@
-const config = require("config");
 const jwt = require("jsonwebtoken");
 
 function auth(req, res, next) {
@@ -15,8 +14,8 @@ function auth(req, res, next) {
 
     try {
         // Verify token
-        const decodedToken = jwt.verify(token, config.get("jwtSecret"));
-        // Add user from payloaf
+        const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+        // Add user from payload
         req.user = decodedToken;
         next();
     } catch (e) {

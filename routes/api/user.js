@@ -17,17 +17,7 @@ router.get('/', authMiddleware, (req, res) => {
             }
             return res.status(200).json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
@@ -72,17 +62,7 @@ router.post('/update', authMiddleware, (req, res) => {
             }
             return res.status(200).json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
@@ -125,17 +105,7 @@ router.post('/updateScore', authMiddleware, (req, res) => {
         .then((user) => {
             return res.status(200).json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
@@ -179,17 +149,7 @@ router.post('/updateCoin', authMiddleware, (req, res) => {
             }
             return res.status(200).json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
@@ -232,17 +192,7 @@ router.post('/updateHatSkin', authMiddleware, (req, res) => {
             }
             return res.status(200).json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
@@ -273,23 +223,41 @@ router.post('/toggleAds', authMiddleware, (req, res) => {
         .then((user) => {
             return res.status(200).json({
                 status: 200,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    googleId: user.googleId,
-                    email: user.email,
-                    bestScore: user.bestScore,
-                    coin: user.coin,
-                    showAds: user.showAds,
-                    hatSkin: user.hatSkin,
-                    createdAt: user.createdAt
-                },
+                user: user.toAuthJSON(),
             });
         })
         .catch((err) => {
             return res.status(400).json({
                 status: 400,
                 msg: 'Update failed',
+            });
+        });
+});
+
+// @route GET api/user/leaderboard
+// @desc Get global leaderboard
+// @access Private
+router.get('/leaderboard', authMiddleware, (req, res) => {
+    User.find()
+        .sort({ bestScore: -1 })
+        .limit(50)
+        .select('name bestScore hatSkin')
+        .then(users => {
+            const leaderboard = users.map((user, index) => ({
+                rank: index + 1,
+                name: user.name,
+                bestScore: user.bestScore,
+                hatSkin: user.hatSkin
+            }));
+            res.json({
+                status: 200,
+                leaderboard
+            });
+        })
+        .catch(err => {
+            res.status(500).json({
+                status: 500,
+                msg: 'Server error'
             });
         });
 });
