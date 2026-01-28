@@ -31,8 +31,6 @@ mongo.connect();
 // Routes
 app.use('/api/user', users);
 app.use('/api/auth', auth);
-app.use('/admin/auth', authAdmin);
-app.use('/admin/user', user);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
