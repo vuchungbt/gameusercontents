@@ -3,7 +3,7 @@
     "watch_options": {
        "followSymlinks": false
     },
-    "name" :"chat",
+    "name" :"v3-game-ice",
     "script":"server.js",
     "watch": true,
         "env_dev": {
